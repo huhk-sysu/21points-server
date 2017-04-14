@@ -1,0 +1,16 @@
+{
+  "name": "21points-server",
+  "version": "1.0.0",
+  "description": "21点游戏的服务器",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "hhk <codeforsomeone@gmail.com>",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.15.2",
+    "socket.io": "^1.7.3"
+  }
+}
