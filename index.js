@@ -11,8 +11,6 @@ io.on('connection', function (socket) {
       socket.emit('hasError', { msg: '玩家人数已满！' })
     } else {
       console.log(nextPlayer + ' ready!')
-      socket.leave('blue')
-      socket.leave('red')
       socket.join(nextPlayer)
       socket.emit('player', nextPlayer)
       if (store.getPlayers() === 2) {
@@ -29,6 +27,7 @@ io.on('connection', function (socket) {
         redCards_[0] = 0
         io.to('blue').emit('initCards', {blueCards: blueCards_, redCards: redCards_})
         io.to('blue').emit('turn')
+        console.log('init done!')
       }
     }
   })
@@ -46,6 +45,8 @@ io.on('connection', function (socket) {
   socket.on('stop', function (player) {
     console.log(player + ' stop!')
     let gameStatus = store.stopGettingCard(player)
+    socket.leave('blue')
+    socket.leave('red')
     if (gameStatus !== 'playing') {
       console.log('blue: ' + store.blueCards)
       console.log('red: ' + store.redCards)
@@ -56,6 +57,11 @@ io.on('connection', function (socket) {
       let anotherPlayer = player === 'blue' ? 'red' : 'blue'
       io.to(anotherPlayer).emit('turn')
     }
+  })
+  socket.on('disconnect', function () {
+    console.log('some one has disconnected!')
+    io.emit('hasError', { msg: '你的对手断开了连接！' })
+    store.reset()
   })
 })
 
