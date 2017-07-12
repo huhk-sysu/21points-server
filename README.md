@@ -1,10 +1,15 @@
 # 21points-server
+
 21点游戏服务器端
 
-开启服务器：
+## 编译（请预先在全局装好tsc)
+
+```bash
+npm run build
 ```
+
+## 开启服务器：
+
+```bash
 npm start
- 
-// or
-node index.js
 ```
