@@ -1,4 +1,4 @@
-import { Player, PlayerRole } from './Player'
+import { Player, PlayerRole } from "./Player";
 
 export class GameManager {
     cards = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
@@ -6,21 +6,21 @@ export class GameManager {
     currentPlayer: number;
     currentIndex: number;
     get currentPlayerName(): string {
-        return this.currentPlayer === 0 ? 'blue' : 'red';
+        return this.currentPlayer === 0 ? "blue" : "red";
     }
     set currentPlayerName(name: string) {
-        this.currentPlayer = name === 'blue' ? 0 : 1;
+        this.currentPlayer = name === "blue" ? 0 : 1;
     }
     constructor() {
         this.players = [];
         this.players[0] = new Player(PlayerRole.Blue);
         this.players[1] = new Player(PlayerRole.Red);
-        this.reset();
+        this.restart();
     }
     /**
      * 初始化
      */
-    reset(): void {
+    restart(): void {
         this.currentPlayer = 0;
         this.currentIndex = 0;
         this.players[0].reset();
@@ -48,32 +48,32 @@ export class GameManager {
     draw(): void {
         const card = this.cards[this.currentIndex++];
         this.players[this.currentPlayer].draw(card);
-        if (this.currentPlayer === PlayerRole.Blue || this.players[0].stopped) {
-            this.currentPlayer = PlayerRole.Red;
+        if (this.currentPlayer === PlayerRole.Blue) {
+            this.currentPlayer = this.players[1].stopped ? PlayerRole.Blue : PlayerRole.Red;
         } else {
-            this.currentPlayer = PlayerRole.Blue;
+            this.currentPlayer = this.players[0].stopped ? PlayerRole.Red : PlayerRole.Blue;
         }
     }
     /**
      * 计算结果
      */
     judge(): string {
-        let blueScore = this.players[0].getScore();
-        let redScore = this.players[1].getScore();
-        if (blueScore > redScore) return 'blue'
-        else if (blueScore < redScore) return 'red'
-        else return 'draw'
+        const blueScore = this.players[0].getScore();
+        const redScore = this.players[1].getScore();
+        if (blueScore > redScore) return "blue";
+        else if (blueScore < redScore) return "red";
+        else return "draw";
     }
     /**
      * 某方停止
      */
     stop(player: string): void {
-        if (player === 'blue') {
+        if (player === "blue") {
             this.players[0].stopped = true;
-            this.currentPlayerName = 'red';
+            this.currentPlayerName = "red";
         } else {
             this.players[1].stopped = true;
-            this.currentPlayerName = 'blue';
+            this.currentPlayerName = "blue";
         }
     }
 }

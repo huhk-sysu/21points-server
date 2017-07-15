@@ -1,75 +1,101 @@
-import * as http from 'http'
-import * as express from 'express';
-import * as socketIO from 'socket.io';
-import { GameManager } from './GameManager'
+import * as http from "http";
+import * as express from "express";
+import * as socketIO from "socket.io";
+import { RoomManager } from "./RoomManager";
 
-let app = express();
-let server = http.createServer(app);
-let io = socketIO(server);
-let gameManager = new GameManager();
-let bluePlayer = gameManager.players[0];
-let redPlayer = gameManager.players[1];
-let blueCards = bluePlayer.cards;
-let redCards = redPlayer.cards;
+const app = express();
+const server = http.createServer(app);
+const io = socketIO(server);
+const RoomManagers = new Map<string, RoomManager>();
+const socketInRoom = new Map<string, string>();
+const roomNames = ["room1", "room2"];
 
-io.on('connection', function (socket) {
-  console.log('a new player connected!')
-  socket.on('ready', function () {
+for (const name of roomNames) {
+  RoomManagers.set(name, new RoomManager(name));
+}
+
+io.on("connection", function (socket) {
+  console.log(`${socket.id} connected`);
+  socket.on("ready", function (room: string) {
+    const roomManager = RoomManagers.get(room);
+    const { bluePlayer, redPlayer } = roomManager.getplayers();
     if (!bluePlayer.ready) {
-      socket.join('blue');
-      socket.emit('player', 'blue');
+      console.log(`${socket.id} join ${room} as bluePlayer`);
+      roomManager.blueSocket = socket.id;
+      socket.emit("player", "blue");
+      socket.join(room);
+      socketInRoom.set(socket.id, room);
       bluePlayer.ready = true;
     } else if (!redPlayer.ready) {
-      socket.join('red');
-      socket.emit('player', 'red');
+      console.log(`${socket.id} join ${room} as redPlayer`);
+      roomManager.redSocket = socket.id;
+      socket.emit("player", "red");
+      socket.join(room);
+      socketInRoom.set(socket.id, room);
       redPlayer.ready = true;
     } else {
-      socket.emit('hasError', { msg: '玩家人数已满！' });
+      socket.emit("hasError", { msg: "玩家人数已满！" });
       return;
     }
     if (bluePlayer.ready && redPlayer.ready) {
-      console.log('game start!')
-      gameManager.reset();
-      console.log('blue: ' + blueCards);
-      console.log('red: ' + redCards);
-      io.to('blue').to('red').emit('updateCards', { blueCards, redCards });
-      io.to('blue').to('red').emit('begin');
-      io.to('blue').emit('turn');
+      const { blueCards, redCards } = roomManager.getCards();
+      console.log(`===room ${room}, game start===`);
+      console.log("blue: " + blueCards);
+      console.log("red: " + redCards);
+      console.log("======");
+      io.to(room).emit("updateCards", { blueCards, redCards });
+      io.to(room).emit("begin");
+      io.to(roomManager.blueSocket).emit("turn");
     }
-  })
-  socket.on('getCard', function () {
-    gameManager.draw();
-    console.log('===new round===')
-    console.log('blue: ' + blueCards);
-    console.log('red: ' + redCards);
-    console.log('======')
-    io.to('blue').to('red').emit('updateCards', { blueCards, redCards });
-    io.to(gameManager.currentPlayerName).emit('turn');
-  })
-  socket.on('stop', function (player: string) {
-    console.log(player + ' stop!');
-    socket.leave(player);
-    gameManager.stop(player);
-    if (bluePlayer.stopped && redPlayer.stopped) {
-      const result = gameManager.judge();
-      console.log('===result===')
-      console.log('blue: ' + blueCards)
-      console.log('red: ' + redCards)
-      console.log('gameover! result:' + result);
-      console.log('======')
-      io.emit('finish', { status: result, blueCards, redCards });
-      gameManager.reset();
+  });
+  socket.on("getCard", function () {
+    const roomManager = RoomManagers.get(socketInRoom.get(socket.id));
+    const { blueCards, redCards } = roomManager.getCards();
+    roomManager.draw();
+    console.log(`===room ${roomManager.name}, new round===`);
+    console.log("blue: " + blueCards);
+    console.log("red: " + redCards);
+    console.log("======");
+    io.to(roomManager.name).emit("updateCards", { blueCards, redCards });
+    io.to(roomManager.currentPlayerSocket).emit("turn");
+  });
+  socket.on("stop", function (player: string) {
+    const roomManager = RoomManagers.get(socketInRoom.get(socket.id));
+    const { blueCards, redCards } = roomManager.getCards();
+    console.log(`===room ${roomManager.name}, ${player} stop===`);
+    roomManager.stop(player);
+    if (roomManager.isBothStop()) {
+      const result = roomManager.judge();
+      console.log(`===room ${roomManager.name}, result===`);
+      console.log("blue: " + blueCards);
+      console.log("red: " + redCards);
+      console.log("gameover! result:" + result);
+      console.log("======");
+      io.to(roomManager.name).emit("finish", { status: result, blueCards, redCards });
     } else {
-      io.to(gameManager.currentPlayerName).emit('turn');
+      io.to(roomManager.currentPlayerSocket).emit("turn");
     }
-  })
-  socket.on('disconnect', function () {
-    console.log('some one has disconnected!');
-    io.emit('hasError', { msg: '你的对手断开了连接！' });
-    gameManager.reset();
-  })
-})
+  });
+  socket.on("leave", function () {
+    const room = socketInRoom.get(socket.id);
+    if (room === undefined) return;
+    console.log(`${socket.id} left ${room}`);
+    socket.leave(room);
+    socketInRoom.delete(socket.id);
+    const roomManager = RoomManagers.get(room);
+    roomManager.someoneLeave();
+  });
+  socket.on("disconnect", function () {
+    console.log(`${socket.id} disconnected`);
+    const room = socketInRoom.get(socket.id);
+    if (room === undefined) return;
+    io.to(room).emit("hasError", { msg: "你的对手断开了连接！" });
+    socketInRoom.delete(socket.id);
+    const roomManager = RoomManagers.get(room);
+    roomManager.someoneLeave();
+  });
+});
 
 server.listen(3000, function () {
-  console.log('the server is running...');
-})
+  console.log("the server is running on http://localhost:3000");
+});
